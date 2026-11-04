@@ -1,0 +1,43 @@
+{
+  "name": "@rubeneschauzier/jbr-experiment-fedshop-discovery",
+  "version": "0.1.0",
+  "description": "jbr experiment type for the discovery-based FedShop benchmark",
+  "lsd:module": true,
+  "main": "index.js",
+  "types": "index.d.ts",
+  "license": "MIT",
+  "files": [
+    "lib/**/*.d.ts",
+    "lib/**/*.js",
+    "lib/templates",
+    "index.d.ts",
+    "index.js",
+    "components",
+    "bin"
+  ],
+  "scripts": {
+    "build": "tsc && componentsjs-generator -s lib -c components -r fsd",
+    "prepare": "npm run build"
+  },
+  "peerDependencies": {
+    "jbr": "^6.2.0"
+  },
+  "dependencies": {
+    "@rdfjs/types": "^1.1.0",
+    "csv-parse": "^5.5.0",
+    "dockerode": "^4.0.0",
+    "fs-extra": "^11.0.0",
+    "sparql-benchmark-runner": "^5.1.1"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.3.0",
+    "@types/fs-extra": "^11.0.0",
+    "@types/node": "^20.0.0",
+    "componentsjs-generator": "^4.3.0",
+    "jbr": "^6.2.0",
+    "typescript": "^5.4.0"
+  },
+  "bin": {
+    "fedshop-discovery-init": "bin/fedshop-discovery-init.js"
+  }
+}

@@ -1,0 +1,43 @@
+# The benchmark's parameters: keys of the `discovery` section of the FedShop config, merged over it.
+# These are the full benchmark's values (experiments/bsbm/discovery/README.md, "Parameters").
+# The experiment adds its own keys for where outputs go and where Virtuoso runs; don't set
+# workdir, virtuoso.* or proxy.control_port here.
+
+# Every publisher's storage is <base_url><publisher>/, and the query services are on the same host,
+# on their own ports. The host is the proxy's container: engines on the experiment's network reach it.
+base_url: "http://fedshop-proxy:3000/"
+known:                         # shops and review sites known up front, where the engine starts (the taxonomy always is)
+  ratio: 0.5
+  seed: 42
+layout:                        # documents of shops and review sites: a document per offer or review, or product pages
+  product_pages: 0.5           # share with product pages (offers or reviews in their listing), stratified over kind and known
+  seed: 42
+members:                       # shops and review sites, generated with FedShop's templates against the product catalog
+  shops: 20
+  review_sites: 20
+  pool: 20000                  # products shops and review sites deal in
+  offers: 2000                 # average offers per shop (FedShop's normal_dist avg)
+  reviews: 10000               # average reviews per review site; reviewers = reviews / 20
+  seed: 42
+brands:                        # producers publish their products; never known, always discovered
+  products: 200000
+  count: 400
+  zipf: 0.8
+  min_products: 20
+  service_share: 0.25          # the largest brands (this share) run a query service
+  seed: 42
+links:                         # rdfs:seeAlso between listings of the same product: peers per listing, or "all"
+  reviews: 2
+  where_to_buy: 3
+  also_reviewed: 0
+  brand_where_to_buy: 2
+  brand_reviews: all
+  seed: 42
+proxy:
+  port_offset: 10000           # the Solid server and the services listen on their public port + this
+  sample_ms: 50                # CPU and memory sampling interval for min/max (totals are exact)
+workload:
+  per_template: 5
+  max_candidates: 40
+  max_rows: 100000
+  seed: 42

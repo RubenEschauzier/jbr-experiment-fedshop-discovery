@@ -1,0 +1,7 @@
+node_modules/
+components/
+index.js
+index.d.ts
+lib/**/*.js
+lib/**/*.d.ts
+*.js.map
