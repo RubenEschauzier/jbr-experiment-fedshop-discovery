@@ -11,9 +11,10 @@ import type {
   ProcessHandler,
 } from 'jbr';
 import { ProcessHandlerComposite, secureProcessHandler } from 'jbr';
-import { ResultSerializerCsv, ResultSerializerRaw } from 'sparql-benchmark-runner';
+import { ResultSerializerCsv } from 'sparql-benchmark-runner';
 import type { IMeasurement } from './FedShopDiscoveryRunner';
 import { FedShopDiscoveryRunner } from './FedShopDiscoveryRunner';
+import { writeRawResults } from './RawResults';
 import type { IQueryInstance, IReference } from './Workload';
 import { FORMS, readQueryInstances, readReference, writeQueryInstances } from './Workload';
 
@@ -196,11 +197,14 @@ export class ExperimentFedShopDiscovery implements Experiment {
       await new ResultSerializerCsv().serialize(Path.join(output, 'query-times.csv'), results.aggregateResults);
       if (results.rawResults) {
         await new ResultSerializerCsv().serialize(Path.join(output, 'query-executions.csv'), results.rawResults);
-        await new ResultSerializerRaw().serialize(Path.join(output, 'query-results-raw.json'), results.rawResults);
       }
       await fs.writeFile(Path.join(output, 'proxy-stats.jsonl'), measurements
         .map(m => JSON.stringify({ name: m.name, id: m.id, warmup: m.warmup, proxy: m.proxy }))
         .join('\n'));
+      // Last, as it is by far the largest
+      if (results.rawResults) {
+        await writeRawResults(Path.join(output, 'query-results-raw.json'), results.rawResults);
+      }
     } finally {
       await closeProcess();
     }
