@@ -5,3 +5,4 @@ index.d.ts
 lib/**/*.js
 lib/**/*.d.ts
 *.js.map
+*.tgz
