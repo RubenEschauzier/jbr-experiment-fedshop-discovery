@@ -33,6 +33,12 @@ export interface IQueryInstance {
 }
 
 /**
+ * One query instance as generated/queries/<form>.json holds it: its query file instead of its text,
+ * relative to the generated directory, so that the query is read in its own file.
+ */
+type IQueryInstanceEntry = Omit<IQueryInstance, 'query'> & { queryFile: string };
+
+/**
  * A reference answer: its variables, and its rows as rowKey strings.
  */
 export interface IReference {
@@ -49,7 +55,8 @@ interface IPublisher {
 }
 
 /**
- * The query instances of one form (see FORMS), written by prepare to generated/queries/<form>.json.
+ * The query instances of one form (see FORMS), written by prepare to generated/queries/<form>.json with
+ * their query files (queryFile) instead of their text.
  */
 export async function writeQueryInstances(generated: string, form: string): Promise<IQueryInstance[]> {
   const files = FORMS[form];
@@ -64,7 +71,7 @@ export async function writeQueryInstances(generated: string, form: string): Prom
     .filter(p => p.known && p.endpoint)
     .map(p => ({ type: 'sparql', value: p.endpoint! }));
 
-  const instances: IQueryInstance[] = [];
+  const entries: IQueryInstanceEntry[] = [];
   const workload = Path.join(benchmark, 'workload');
   for (const template of (await fs.readdir(workload)).filter(d => /^q\d+$/u.test(d)).sort()) {
     const dirs = (await fs.readdir(Path.join(workload, template)))
@@ -78,10 +85,10 @@ export async function writeQueryInstances(generated: string, form: string): Prom
         .map(m => m[1])
         .filter(iri => iri.startsWith(base))
         .map(iri => iri.split('#')[0])) ];
-      instances.push({
+      entries.push({
         name: template,
         id: dir.split('_')[1],
-        query,
+        queryFile: Path.relative(generated, Path.join(instanceDir, files.query)),
         context: {
           sources: [ ...seeds, ...form === 'plain' ? knownEndpoints : [] ],
           lenient: true,
@@ -94,12 +101,16 @@ export async function writeQueryInstances(generated: string, form: string): Prom
     }
   }
   await fs.ensureDir(Path.join(generated, 'queries'));
-  await fs.writeJson(Path.join(generated, 'queries', `${form}.json`), instances, { spaces: 1 });
-  return instances;
+  await fs.writeJson(Path.join(generated, 'queries', `${form}.json`), entries, { spaces: 1 });
+  return await readQueryInstances(generated, form);
 }
 
 export async function readQueryInstances(generated: string, form: string): Promise<IQueryInstance[]> {
-  return await fs.readJson(Path.join(generated, 'queries', `${form}.json`));
+  const entries: IQueryInstanceEntry[] = await fs.readJson(Path.join(generated, 'queries', `${form}.json`));
+  return await Promise.all(entries.map(async({ queryFile, ...entry }) => ({
+    ...entry,
+    query: await fs.readFile(Path.join(generated, queryFile), 'utf8'),
+  })));
 }
 
 /**

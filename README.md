@@ -27,7 +27,7 @@ All on one Docker network, with the generated directory mounted at `/generated`:
 2. **Data and documents.** The generator runs `catalog`, `members`, `publish`, `fragment` and `load-scripts`.
 3. **Query services.** Both Virtuoso containers start on new database volumes and load their graphs on first start, from the scripts of step 2 (`initdb.d`): the main container every publisher's graph and the discoverable publishers' services, the known container the known publishers' graphs and services.
 4. **Workload.** The generator runs `build-workload` (which also writes every instance's plain form) and `serving-plan` against the running containers, then they stop. Their databases stay in Docker volumes for `run`.
-5. **Query sets.** `generated/queries/service.json` and `plain.json`: every instance with its query, its sources and its reference answer.
+5. **Query sets.** `generated/queries/service.json` and `plain.json`: every instance with its query file, its sources and its reference answer (paths relative to `generated/`).
 
 Generation is skipped when `generated/fedshop-discovery.json` exists; it records both images and their IDs. `jbr prepare -f` regenerates from scratch: it removes `generated/benchmark`, `logs` and `queries` and the database volumes first.
 
