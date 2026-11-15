@@ -41,6 +41,9 @@ const VIRTUOSO_ENV = [
   'VIRT_SPARQL_MaxQueryCostEstimationTime=0',
   'VIRT_SPARQL_ResultSetMaxRows=0',
   'VIRT_SPARQL_MaxQueryExecutionTime=0',
+  // A CONSTRUCT is answered from an in-memory dictionary of its triples, by default of at most 10000: a larger
+  // one fails with "Hash dictionary is full". This is the maximum Virtuoso accepts
+  'VIRT_SPARQL_MaxConstructTriples=2097150',
   'VIRT_Parameters_MaxQueryMem=2G',
   'VIRT_Parameters_ServerThreads=100',
   'VIRT_Parameters_MaxClientConnections=100',
