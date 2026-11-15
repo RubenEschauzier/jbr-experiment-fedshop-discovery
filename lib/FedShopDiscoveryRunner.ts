@@ -22,6 +22,17 @@ export interface IFedShopDiscoveryRunnerArgs extends ISparqlBenchmarkRunnerArgs 
   references: Map<string, IReference>;
   /** Called after every execution, warmups included. */
   onMeasurement: (measurement: IMeasurement) => void;
+  /**
+   * The proxy's resource monitors that must be idle before the next query starts.
+   * Default: both Virtuoso containers, which serve every SPARQL endpoint.
+   */
+  idleComponents?: string[];
+  /** The CPU use (100 = one core), averaged over one window, below which a component counts as idle. Default 5. */
+  idleCpuPercent?: number;
+  /** The window over which CPU use is averaged, in ms. Default 1000. */
+  idleWindowMs?: number;
+  /** How long to wait for the components to become idle before running the next query anyway, in ms. Default 600000. */
+  idleMaxWaitMs?: number;
 }
 
 /**
@@ -30,13 +41,18 @@ export interface IFedShopDiscoveryRunnerArgs extends ISparqlBenchmarkRunnerArgs 
  * - sends the query's own context (its sources) with the query, which the engine reads when it
  *   accepts a context per request (Comunica: --contextOverride);
  * - keeps the rows and scores them against the reference answer;
- * - adds the proxy's request counts and per-component CPU and memory to the result.
+ * - adds the proxy's request counts and per-component CPU and memory to the result;
+ * - waits until the SPARQL endpoints are idle before the next query starts.
  */
 export class FedShopDiscoveryRunner extends SparqlBenchmarkRunner {
   private readonly proxyControlUrl: string;
   private readonly instances: Map<string, IQueryInstance>;
   private readonly references: Map<string, IReference>;
   private readonly onMeasurement: (measurement: IMeasurement) => void;
+  private readonly idleComponents: string[];
+  private readonly idleCpuPercent: number;
+  private readonly idleWindowMs: number;
+  private readonly idleMaxWaitMs: number;
   private rows: Record<string, RDF.Term>[] = [];
   private inWarmup = false;
 
@@ -46,6 +62,10 @@ export class FedShopDiscoveryRunner extends SparqlBenchmarkRunner {
     this.instances = args.instances;
     this.references = args.references;
     this.onMeasurement = args.onMeasurement;
+    this.idleComponents = args.idleComponents ?? [ 'known_endpoints', 'discovered_endpoints' ];
+    this.idleCpuPercent = args.idleCpuPercent ?? 5;
+    this.idleWindowMs = args.idleWindowMs ?? 1000;
+    this.idleMaxWaitMs = args.idleMaxWaitMs ?? 600_000;
   }
 
   public override async executeAllQueries(
@@ -71,7 +91,46 @@ export class FedShopDiscoveryRunner extends SparqlBenchmarkRunner {
     const proxy = await this.control('GET', '/stats');
     Object.assign(result, this.score(queryString), flatten(proxy));
     this.onMeasurement({ name, id, warmup: this.inWarmup, result, proxy });
+
+    await this.waitUntilIdle(`${name}#${id}`, instance.known);
     return result;
+  }
+
+  /**
+   * Waits until every idle component (by default the Virtuoso containers serving the SPARQL endpoints) has used
+   * less than idleCpuPercent CPU over one window. An engine that stops at its timeout, or crashes, leaves
+   * the queries it sent running on the endpoints, and the next query would start against busy endpoints.
+   * Done after every query rather than only after a timeout, as an engine can also stop at its timeout
+   * without reporting an error, and it costs one window when the endpoints are idle already.
+   * The window resets the proxy's counters, which the next query resets again before it starts.
+   */
+  private async waitUntilIdle(label: string, known: string[] | undefined): Promise<void> {
+    const start = Date.now();
+    let reported = false;
+    for (;;) {
+      await this.control('POST', '/reset', { label: `${label} idle check`, known });
+      await new Promise(resolve => setTimeout(resolve, this.idleWindowMs));
+      const { resources = {}} = await this.control('GET', '/stats');
+      const busy = this.idleComponents
+        .map(name => <const> [ name, resources[name]?.cpu_percent?.avg ])
+        .filter(([ , cpu ]) => typeof cpu === 'number' && cpu >= this.idleCpuPercent);
+      const waited = Math.round((Date.now() - start) / 1000);
+      const describe = (): string => busy.map(([ name, cpu ]) => `${name} at ${cpu}% CPU`).join(', ');
+      if (busy.length === 0) {
+        if (reported) {
+          this.log(`Endpoints idle after ${waited} s`);
+        }
+        return;
+      }
+      if (Date.now() - start >= this.idleMaxWaitMs) {
+        this.log(`Endpoints still busy after ${waited} s (${describe()}), running the next query anyway`);
+        return;
+      }
+      if (!reported) {
+        this.log(`Waiting for busy endpoints before the next query (${describe()})`);
+        reported = true;
+      }
+    }
   }
 
   public override bindingsToString(bindings: Record<string, RDF.Term>): string {
