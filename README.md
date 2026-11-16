@@ -7,7 +7,7 @@ This package doesn't contain the benchmark. It runs the benchmark's published ge
 ## Use
 
 ```bash
-npx -p jbr -p @rubeneschauzier/fedshop-discovery fedshop-discovery-init my-experiment   # instead of jbr init
+npx -p jbr -p @rubeneschauzier/jbr-experiment-fedshop-discovery fedshop-discovery-init my-experiment   # instead of jbr init
 cd my-experiment
 npx jbr set-hook hookSparqlEndpoint sparql-endpoint-comunica
 # set generatorImage in jbr-experiment.json; see "Engine" below for the hook
@@ -17,7 +17,7 @@ npx jbr run
 
 `jbr init <type>` installs `@jbr-experiment/<type>` from npm, and this package is published under another name. `fedshop-discovery-init` runs jbr's own init task with this package installed instead (jbr finds experiment types by their components, not their package name), so the result is what `jbr init` would make; `--combinations` and `--force` work as there. After that, every jbr command works as usual.
 
-The benchmark's parameters are in `input/discovery-overrides.yaml` (the full benchmark by default), and the experiment's own parameters in `jbr-experiment.json`. Combinations can share one generated directory, and then share its data and Virtuoso databases.
+The benchmark's parameters are in `input/discovery-overrides.yaml` (by default the benchmark's values for link-traversal engines), and the experiment's own parameters in `jbr-experiment.json`. Combinations can share one generated directory, and then share its data and Virtuoso databases.
 
 ## What `prepare` does
 
@@ -27,7 +27,7 @@ All on one Docker network, with the generated directory mounted at `/generated`:
 2. **Data and documents.** The generator runs `catalog`, `members`, `publish`, `fragment` and `load-scripts`.
 3. **Query services.** Both Virtuoso containers start on new database volumes and load their graphs on first start, from the scripts of step 2 (`initdb.d`): the main container every publisher's graph and the discoverable publishers' services, the known container the known publishers' graphs and services.
 4. **Workload.** The generator runs `build-workload` (which also writes every instance's plain form) and `serving-plan` against the running containers, then they stop. Their databases stay in Docker volumes for `run`.
-5. **Query sets.** `generated/queries/service.json` and `plain.json`: every instance with its query file, its sources and its reference answer (paths relative to `generated/`).
+5. **Query sets.** `generated/queries/service.json` and `plain.json`: every instance with its query file, its context (sources, and with `sourceNamespaces` the namespace of every endpoint), the publishers known for it and its reference answer (paths relative to `generated/`). This step always runs, also when generation is skipped.
 
 Generation is skipped when `generated/fedshop-discovery.json` exists; it records both images and their IDs. `jbr prepare -f` regenerates from scratch: it removes `generated/benchmark`, `logs` and `queries` and the database volumes first.
 
@@ -35,7 +35,7 @@ Generation is skipped when `generated/fedshop-discovery.json` exists; it records
 
 1. Starts both Virtuoso containers (from their volumes), the Solid server (`fedshop-css`), the engine hook and the counting proxy, on one network. The proxy's container is named after the host of `base_url` (`fedshop-proxy`), so every IRI and endpoint in the data resolves to it on the network. The proxy's control API is published on the host (`proxyControlPort`).
 2. Waits until the proxy reports every server answering (`GET /health`).
-3. Runs the instances of `queryForm` with sparql-benchmark-runner. Around every query it resets the proxy (`POST /reset`, with the publishers the query's `SERVICE` clauses name as known), sends the query's own context, and afterwards reads the proxy's stats and scores the rows against the reference answer.
+3. Runs the instances of `queryForm` with sparql-benchmark-runner. Around every query it resets the proxy (`POST /reset`, with the publishers of the query's known endpoints as known), sends the query's own context, and afterwards reads the proxy's stats and scores the rows against the reference answer.
 
 ## Engine
 
@@ -45,6 +45,8 @@ The engine is the `hookSparqlEndpoint` hook, a SPARQL endpoint on the experiment
 |---|---|
 | `service` | the seed documents (the documents of the query's own IRIs); the `SERVICE` clauses name the known endpoints |
 | `plain` | the seed documents and the known SPARQL endpoints |
+
+With `sourceNamespaces` (the default), the `plain` context also maps every endpoint to its publisher's storage (`@comunica/bus-rdf-resolve-hypermedia-links:sourceNamespaces`), so a link-traversal engine accesses a known publisher only through its endpoint and never fetches its documents. Engines that don't know the key ignore it.
 
 For Comunica, use a link-traversal build and set it up as SolidBench's jbr experiment does:
 
@@ -84,6 +86,8 @@ Per execution:
 | `fedshopConfig` | `experiments/bsbm/snakefile/config.yaml` | FedShop config inside the image |
 | `configOverrides` | `input/discovery-overrides.yaml` | the benchmark's parameters |
 | `queryForm` | `plain` | `service` or `plain` |
+| `sourceNamespaces` | true | map every endpoint among a query's sources to its publisher's storage (see "Engine") |
+| `queryInstances` | `[]` | the instances of every template to run, such as `[0]` for one query per template; empty runs all |
 | `endpointUrl` | `http://localhost:3001/sparql` | the engine's endpoint, from the host |
 | `proxyControlPort` | 3999 | host port of the proxy's control API |
 | `proxyRequestLog` | false | write every request to `output/proxy-requests.jsonl` |
