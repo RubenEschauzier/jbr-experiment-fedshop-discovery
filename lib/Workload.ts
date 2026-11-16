@@ -15,6 +15,12 @@ export const FORMS: Record<string, { query: string; reference: string }> = {
 };
 
 /**
+ * The context key of Comunica's link traversal that maps a source to the namespaces (URL prefixes) it
+ * serves: the engine reaches a document under such a namespace through that source, without fetching it.
+ */
+export const SOURCE_NAMESPACES = '@comunica/bus-rdf-resolve-hypermedia-links:sourceNamespaces';
+
+/**
  * One query instance as the runner executes it.
  */
 export interface IQueryInstance {
@@ -26,7 +32,7 @@ export interface IQueryInstance {
   query: string;
   /** The Comunica context sent with the query: its sources. */
   context: Record<string, any>;
-  /** Publishers the proxy counts as known for this query; undefined means the known publishers. */
+  /** Publishers the proxy counts as known for this query: those of its known endpoints. */
   known?: string[];
   /** The reference answer, relative to the generated directory. */
   reference: string;
@@ -52,13 +58,23 @@ export interface IReference {
 interface IPublisher {
   known: boolean;
   endpoint?: string;
+  /** The publisher's storage: the prefix of all its documents. */
+  storage: string;
 }
 
 /**
  * The query instances of one form (see FORMS), written by prepare to generated/queries/<form>.json with
  * their query files (queryFile) instead of their text.
+ *
+ * With sourceNamespaces, the context of every query maps each SPARQL endpoint among its sources to its
+ * publisher's storage (SOURCE_NAMESPACES), so the engine accesses that publisher only through its
+ * endpoint and never traverses its documents.
  */
-export async function writeQueryInstances(generated: string, form: string): Promise<IQueryInstance[]> {
+export async function writeQueryInstances(
+  generated: string,
+  form: string,
+  sourceNamespaces: boolean,
+): Promise<IQueryInstance[]> {
   const files = FORMS[form];
   const benchmark = Path.join(generated, 'benchmark');
   const serving = await fs.readJson(Path.join(benchmark, 'serving.json'));
@@ -70,6 +86,8 @@ export async function writeQueryInstances(generated: string, form: string): Prom
   const knownEndpoints = Object.values(publishers)
     .filter(p => p.known && p.endpoint)
     .map(p => ({ type: 'sparql', value: p.endpoint! }));
+  const namespaces = Object.fromEntries(knownEndpoints.map(({ value }) =>
+    [ value, [ publishers[byEndpoint.get(value)!].storage ]]));
 
   const entries: IQueryInstanceEntry[] = [];
   const workload = Path.join(benchmark, 'workload');
@@ -92,10 +110,11 @@ export async function writeQueryInstances(generated: string, form: string): Prom
         context: {
           sources: [ ...seeds, ...form === 'plain' ? knownEndpoints : [] ],
           lenient: true,
+          ...sourceNamespaces && form === 'plain' ? { [SOURCE_NAMESPACES]: namespaces } : {},
         },
-        known: form === 'service' ?
-          [ ...new Set(services.map(e => byEndpoint.get(e)).filter((n): n is string => Boolean(n))) ] :
-          undefined,
+        known: [ ...new Set((form === 'plain' ? knownEndpoints.map(e => e.value) : services)
+          .map(e => byEndpoint.get(e))
+          .filter((n): n is string => Boolean(n))) ].sort(),
         reference: Path.relative(generated, Path.join(instanceDir, files.reference)),
       });
     }

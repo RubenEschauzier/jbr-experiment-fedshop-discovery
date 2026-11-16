@@ -67,6 +67,8 @@ export class ExperimentFedShopDiscovery implements Experiment {
   public readonly fedshopConfig: string;
   public readonly configOverrides: string;
   public readonly queryForm: string;
+  public readonly sourceNamespaces: boolean;
+  public readonly queryInstances: number[];
   public readonly endpointUrl: string;
   public readonly proxyControlPort: number;
   public readonly proxyRequestLog: boolean;
@@ -93,6 +95,8 @@ export class ExperimentFedShopDiscovery implements Experiment {
     this.fedshopConfig = options.fedshopConfig;
     this.configOverrides = options.configOverrides;
     this.queryForm = options.queryForm;
+    this.sourceNamespaces = options.sourceNamespaces ?? true;
+    this.queryInstances = options.queryInstances ?? [];
     this.endpointUrl = options.endpointUrl;
     this.proxyControlPort = options.proxyControlPort;
     this.proxyRequestLog = options.proxyRequestLog;
@@ -122,7 +126,7 @@ export class ExperimentFedShopDiscovery implements Experiment {
       context.logger.info(`Benchmark already generated in ${generated}`);
     }
     for (const form of Object.keys(FORMS)) {
-      await writeQueryInstances(generated, form);
+      await writeQueryInstances(generated, form, this.sourceNamespaces);
     }
   }
 
@@ -155,7 +159,8 @@ export class ExperimentFedShopDiscovery implements Experiment {
       // Wait for all started processes
       await this.waitForHealth(context);
 
-      const instances = await readQueryInstances(generated, this.queryForm);
+      const instances = (await readQueryInstances(generated, this.queryForm))
+        .filter(instance => this.queryInstances.length === 0 || this.queryInstances.includes(Number(instance.id)));
       const references = new Map<string, IReference>();
       for (const instance of instances) {
         references.set(instance.query, await readReference(generated, instance));
@@ -559,6 +564,18 @@ export interface IExperimentFedShopDiscoveryArgs {
    * 'plain' (no SERVICE clauses; the known endpoints are given as sources).
    */
   queryForm: string;
+  /**
+   * Whether every query's context maps each SPARQL endpoint among its sources to its publisher's storage
+   * (Comunica's sourceNamespaces), so the engine accesses that publisher only through its endpoint and
+   * never traverses its documents. Only the plain form has endpoints among its sources.
+   * @default {true}
+   */
+  sourceNamespaces?: boolean;
+  /**
+   * The instances of every template to run, by number (for example [0] for one query per template);
+   * empty or absent runs all.
+   */
+  queryInstances?: number[];
   /**
    * The engine's SPARQL endpoint, as reached from the host.
    */

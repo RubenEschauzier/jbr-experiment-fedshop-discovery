@@ -23,6 +23,8 @@ export class ExperimentHandlerFedShopDiscovery extends ExperimentHandler<Experim
       fedshopConfig: 'experiments/bsbm/snakefile/config.yaml',
       configOverrides: 'input/discovery-overrides.yaml',
       queryForm: 'plain',
+      sourceNamespaces: true,
+      queryInstances: [],
       endpointUrl: 'http://localhost:3001/sparql',
       proxyControlPort: 3999,
       proxyRequestLog: false,
