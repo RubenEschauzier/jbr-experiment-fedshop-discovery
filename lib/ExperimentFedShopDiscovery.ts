@@ -53,6 +53,28 @@ const VIRTUOSO_ENV = [
 ];
 
 /**
+ * The ports of the service listeners a Virtuoso load script defines, as a value of the
+ * net.ipv4.ip_local_reserved_ports sysctl (e.g. 44300-44339), or undefined when it defines none.
+ * The listeners' ports lie in Linux's ephemeral port range (32768-60999): without the reservation, a
+ * connection made inside the container (e.g. by isql) can take one of them first, and Virtuoso then fails
+ * to open that listener ("Failed HTTP listen").
+ */
+export function reservedPorts(loadScript: string): string | undefined {
+  const ports = [ ...new Set([ ...loadScript.matchAll(/lhost\s*=>\s*':(\d+)'/gu) ]
+    .map(match => Number(match[1]))) ].sort((left, right) => left - right);
+  const ranges: string[] = [];
+  for (let start = 0; start < ports.length;) {
+    let end = start;
+    while (end + 1 < ports.length && ports[end + 1] === ports[end] + 1) {
+      end++;
+    }
+    ranges.push(end > start ? `${ports[start]}-${ports[end]}` : `${ports[start]}`);
+    start = end + 1;
+  }
+  return ranges.length > 0 ? ranges.join(',') : undefined;
+}
+
+/**
  * An experiment instance for the discovery-based FedShop benchmark.
  *
  * prepare generates the benchmark with the generator image, in three phases on one Docker
@@ -363,6 +385,8 @@ export class ExperimentFedShopDiscovery implements Experiment {
     const benchmark = Path.join(context.experimentPaths.generated, 'benchmark');
     const handlers: DockerContainerHandler[] = [];
     for (const [ which, buffers ] of [ [ 'main', this.virtuosoBuffersMain ], [ 'known', this.virtuosoBuffersKnown ] ] as const) {
+      const loadScript = Path.join(benchmark, 'virtuoso', which, 'load.sql');
+      const reserved = reservedPorts(await fs.readFile(loadScript, 'utf8'));
       await context.docker.containerCreator.remove(CONTAINERS[which]);
       handlers.push(await context.docker.containerCreator.start({
         containerName: CONTAINERS[which],
@@ -378,11 +402,12 @@ export class ExperimentFedShopDiscovery implements Experiment {
             ...withLoad ?
               [
                 `${Path.join(benchmark, 'data')}:/usr/share/proj:ro`,
-                `${Path.join(benchmark, 'virtuoso', which, 'load.sql')}:/opt/virtuoso-opensource/initdb.d/load.sql:ro`,
+                `${loadScript}:/opt/virtuoso-opensource/initdb.d/load.sql:ro`,
               ] :
               [],
           ],
           NetworkMode: network,
+          ...reserved ? { Sysctls: { 'net.ipv4.ip_local_reserved_ports': reserved }} : {},
         },
         logFilePath: withLoad ?
           Path.join(context.experimentPaths.generated, 'logs', `virtuoso-${which}-load.txt`) :
