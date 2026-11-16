@@ -1,6 +1,6 @@
 {
   "name": "@rubeneschauzier/jbr-experiment-fedshop-discovery",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "jbr experiment type for the discovery-based FedShop benchmark",
   "lsd:module": true,
   "main": "index.js",
