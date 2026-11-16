@@ -1,37 +1,54 @@
 # The benchmark's parameters: keys of the `discovery` section of the FedShop config, merged over it.
-# These are the full benchmark's values (experiments/bsbm/discovery/README.md, "Parameters").
+# These are the benchmark's values for link-traversal engines: fewer reviewers per site, the brands'
+# fs:listingOf triples instead of rdfs:seeAlso links, and 5 country markets without global brands, so that
+# what a query can reach stays small enough to traverse.
 # The experiment adds its own keys for where outputs go and where Virtuoso runs; don't set
 # workdir, virtuoso.* or proxy.control_port here.
 
 # Every publisher's storage is <base_url><publisher>/, and the query services are on the same host,
 # on their own ports. The host is the proxy's container: engines on the experiment's network reach it.
 base_url: "http://fedshop-proxy:3000/"
-known:                         # shops and review sites known up front, where the engine starts (the taxonomy always is)
+known:                         # shops and review sites known up front, where the engine starts (the taxonomy never is: documents only)
   ratio: 0.5
   seed: 42
-layout:                        # documents of shops and review sites: a document per offer or review, or product pages
-  product_pages: 0.5           # share with product pages (offers or reviews in their listing), stratified over kind and known
+layout:                        # how publishers group their entities into documents (every IRI resolves to its document)
+  shops:                       # shares, stratified over known or not; the rest: a document per offer
+    product_pages: 1.0         # a page per product, holding its offers: <shop>/Product42#Offer7
+  review_sites:                # shares, stratified over known or not; the rest: a document per review
+    product_pages: 0.5         # a page per product, holding its reviews: <site>/Product42#Review9
+    by_day: 0.5                # a document per review date: <site>/reviews/2007-03-05#Review9
+  brands: by-month             # a document per publish month (<brand>/products/2005-06#Product77); or per-product
+  dataset_links: true          # every document links to its storage root: <doc> void:inDataset <publisher/>
   seed: 42
 members:                       # shops and review sites, generated with FedShop's templates against the product catalog
   shops: 20
   review_sites: 20
   pool: 20000                  # products shops and review sites deal in
   offers: 2000                 # average offers per shop (FedShop's normal_dist avg)
-  reviews: 10000               # average reviews per review site; reviewers = reviews / 20
+  reviews: 10000               # average reviews per review site
+  reviews_per_reviewer: 100    # reviewers per site = reviews / 100 (≈2,100 reviewers instead of ≈9,300)
   seed: 42
 brands:                        # producers publish their products; never known, always discovered
-  products: 200000
+  products: 40000              # over all brands (at least members.pool): 27 to 3,295 per brand
   count: 400
   zipf: 0.8
   min_products: 20
-  service_share: 0.25          # the largest brands (this share) run a query service
+  service_share: 0.25          # the largest brands (this share) run a query service; 0: none
+  type_spread: {1: 0.6, 2: 0.3, all: 0.1}   # product types available in 1 market, 2, or all
   seed: 42
-links:                         # rdfs:seeAlso between listings of the same product: peers per listing, or "all"
-  reviews: 2
-  where_to_buy: 3
+links:                         # no rdfs:seeAlso (followed for every query); the brand states fs:listingOf instead
+  reviews: 0
+  where_to_buy: 0
   also_reviewed: 0
-  brand_where_to_buy: 2
-  brand_reviews: all
+  brand_where_to_buy: 0
+  brand_reviews: 0
+  brand_listings: true         # <listing> fs:listingOf <product> for every listing, in the brand's product document
+  seed: 42
+markets:                       # members and brands deal within their market; members.pool / count products each
+  count: 5
+  countries: [[US], [UK, FR, ES], [DE, AT, RU], [JP, KR], [CN]]
+  global_brands: 0             # brands sold in every market bridge the markets: with 4, every analytical query reaches ~78k documents
+  global_share: 0.0
   seed: 42
 proxy:
   port_offset: 10000           # the Solid server and the services listen on their public port + this
