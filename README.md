@@ -19,6 +19,8 @@ npx jbr run
 
 The benchmark's parameters are in `input/discovery-overrides.yaml` (by default the benchmark's values for link-traversal engines), and the experiment's own parameters in `jbr-experiment.json`. Combinations can share one generated directory, and then share its data and Virtuoso databases.
 
+Which publishers run a query service is that file's `services` section. Known shops and review sites always run one, and the taxonomy and reviewers never do. For the others, `select: largest` gives the largest brands, discovered shops and discovered review sites a service (`brands`, `shops` and `review_sites` are the share of their number). `select: data` takes them in a seeded random order (`seed`) until they hold that share of the kind's products, offers or reviews. How many shops and review sites are known up front is `known.ratio`. The defaults (`largest`, brands 0.25, shops and review sites 1.0) are the benchmark's earlier behaviour. Generator images from before this section ignore it and keep their built-in 0.25 for brands. Newer images refuse the older `brands.service_share` key.
+
 ## What `prepare` does
 
 All on one Docker network, with the generated directory mounted at `/generated`:
