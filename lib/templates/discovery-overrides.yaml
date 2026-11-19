@@ -29,7 +29,7 @@ members:                       # shops and review sites, generated with FedShop'
   reviews_per_reviewer: 100    # reviewers per site = reviews / 100 (≈2,100 reviewers instead of ≈9,300)
   seed: 42
 brands:                        # producers publish their products; never known, always discovered
-  products: 40000              # over all brands (at least members.pool): 27 to 3,295 per brand
+  products: 40000              # products in the catalog, over all brands (at least members.pool)
   count: 400
   zipf: 0.8
   min_products: 20
