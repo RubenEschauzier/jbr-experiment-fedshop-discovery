@@ -33,9 +33,17 @@ brands:                        # producers publish their products; never known, 
   count: 400
   zipf: 0.8
   min_products: 20
-  service_share: 0.25          # the largest brands (this share) run a query service; 0: none
   type_spread: {1: 0.6, 2: 0.3, all: 0.1}   # product types available in 1 market, 2, or all
   seed: 42
+services:                      # which discoverable publishers run a query service; known shops and review sites
+                               # always do, the taxonomy and reviewers never
+  select: largest              # largest: the largest publishers of a kind, this share of their number;
+                               # data: publishers in a seeded random order until they hold this share of the
+                               #   kind's data (a larger share keeps every service of a smaller one)
+  brands: 0.25                 # brands; their size is their products
+  shops: 1.0                   # discovered shops; their size is their offers
+  review_sites: 1.0            # discovered review sites; their size is their reviews
+  seed: 42                     # the order of select: data
 links:                         # no rdfs:seeAlso (followed for every query); the brand states fs:listingOf instead
   reviews: 0
   where_to_buy: 0
