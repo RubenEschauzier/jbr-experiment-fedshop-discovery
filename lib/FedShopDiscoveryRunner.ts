@@ -66,6 +66,18 @@ export class FedShopDiscoveryRunner extends SparqlBenchmarkRunner {
     this.idleCpuPercent = args.idleCpuPercent ?? 5;
     this.idleWindowMs = args.idleWindowMs ?? 1000;
     this.idleMaxWaitMs = args.idleMaxWaitMs ?? 600_000;
+
+    // fetch-sparql-endpoint sets Content-Length on its POSTs itself. A dependency that loads undici 8 (such as
+    // @comunica/actor-http-fetch, through componentsjs) replaces the dispatcher of Node's fetch, which then
+    // rejects that header ("invalid content-length header"): every query would fail before it is sent.
+    // fetch computes the header itself.
+    const fetcher = <{ fetchCb?: typeof fetch }> <unknown> this.endpointFetcher;
+    const inner = fetcher.fetchCb ?? fetch;
+    fetcher.fetchCb = async(input, init) => {
+      const headers = new Headers(init?.headers);
+      headers.delete('content-length');
+      return inner(input, { ...init, headers });
+    };
   }
 
   public override async executeAllQueries(
